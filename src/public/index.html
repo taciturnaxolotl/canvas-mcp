@@ -7,13 +7,19 @@
   <title>Canvas MCP Server</title>
   <meta name="description" content="Connect your Canvas LMS to AI assistants via the Model Context Protocol. Ask questions about your courses with Claude Desktop.">
   <link rel="icon" type="image/x-icon" href="./favicon.ico">
+  <link rel="canonical" href="https://canvas.dunkirk.sh/" id="canonical-url">
+  <meta name="theme-color" content="#0066cc">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://canvas.dunkirk.sh/" id="og-url">
   <meta property="og:title" content="Canvas MCP Server">
+  <meta property="og:site_name" content="Canvas MCP Server">
   <meta property="og:description" content="Connect your Canvas LMS to AI assistants via the Model Context Protocol. Ask questions about your courses with Claude Desktop.">
   <meta property="og:image" content="https://canvas.dunkirk.sh/og.png" id="og-image">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Canvas MCP Server - Connect Canvas LMS to AI assistants">
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image">
@@ -25,6 +31,7 @@
   <script>
     // Set dynamic URLs based on current host
     const baseUrl = window.location.origin;
+    document.getElementById('canonical-url').setAttribute('href', `${baseUrl}/`);
     document.getElementById('og-url').setAttribute('content', `${baseUrl}/`);
     document.getElementById('og-image').setAttribute('content', `${baseUrl}/og.png`);
     document.getElementById('twitter-url').setAttribute('content', `${baseUrl}/`);
