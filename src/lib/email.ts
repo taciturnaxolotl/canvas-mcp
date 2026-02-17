@@ -3,7 +3,9 @@ import { readFileSync } from "fs";
 import dkim from "nodemailer-dkim";
 
 const SMTP_HOST = process.env.SMTP_HOST;
-const SMTP_PORT = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined;
+const SMTP_PORT = process.env.SMTP_PORT
+	? parseInt(process.env.SMTP_PORT)
+	: undefined;
 const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASS = process.env.SMTP_PASS;
 const SMTP_FROM = process.env.SMTP_FROM;
@@ -15,76 +17,76 @@ const DKIM_DOMAIN = process.env.DKIM_DOMAIN;
 const DKIM_PRIVATE_KEY_FILE = process.env.DKIM_PRIVATE_KEY_FILE;
 
 class Mailer {
-  private transporter: any;
-  private enabled: boolean;
+	private transporter: any;
+	private enabled: boolean;
 
-  constructor() {
-    // Check if SMTP is configured
-    if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
-      console.warn("SMTP not configured - email functionality disabled");
-      this.enabled = false;
-      return;
-    }
+	constructor() {
+		// Check if SMTP is configured
+		if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
+			console.warn("SMTP not configured - email functionality disabled");
+			this.enabled = false;
+			return;
+		}
 
-    this.enabled = true;
+		this.enabled = true;
 
-    // Create SMTP transporter
-    this.transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: false, // Use STARTTLS
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
-    });
+		// Create SMTP transporter
+		this.transporter = nodemailer.createTransport({
+			host: SMTP_HOST,
+			port: SMTP_PORT,
+			secure: false, // Use STARTTLS
+			auth: {
+				user: SMTP_USER,
+				pass: SMTP_PASS,
+			},
+		});
 
-    // Add DKIM signing if configured
-    if (DKIM_SELECTOR && DKIM_DOMAIN && DKIM_PRIVATE_KEY_FILE) {
-      try {
-        const dkimPrivateKey = readFileSync(DKIM_PRIVATE_KEY_FILE, "utf-8");
-        this.transporter.use(
-          "stream",
-          dkim.signer({
-            domainName: DKIM_DOMAIN,
-            keySelector: DKIM_SELECTOR,
-            privateKey: dkimPrivateKey,
-            headerFieldNames: "from:to:subject:date:message-id",
-          })
-        );
-        console.log("DKIM signing enabled");
-      } catch (error) {
-        console.warn("DKIM private key not found, emails will not be signed");
-      }
-    }
-  }
+		// Add DKIM signing if configured
+		if (DKIM_SELECTOR && DKIM_DOMAIN && DKIM_PRIVATE_KEY_FILE) {
+			try {
+				const dkimPrivateKey = readFileSync(DKIM_PRIVATE_KEY_FILE, "utf-8");
+				this.transporter.use(
+					"stream",
+					dkim.signer({
+						domainName: DKIM_DOMAIN,
+						keySelector: DKIM_SELECTOR,
+						privateKey: dkimPrivateKey,
+						headerFieldNames: "from:to:subject:date:message-id",
+					}),
+				);
+				console.log("DKIM signing enabled");
+			} catch (error) {
+				console.warn("DKIM private key not found, emails will not be signed");
+			}
+		}
+	}
 
-  private async sendMail(
-    to: string,
-    subject: string,
-    html: string,
-    text: string
-  ): Promise<void> {
-    if (!this.enabled) {
-      throw new Error("Email is not configured");
-    }
+	private async sendMail(
+		to: string,
+		subject: string,
+		html: string,
+		text: string,
+	): Promise<void> {
+		if (!this.enabled) {
+			throw new Error("Email is not configured");
+		}
 
-    await this.transporter.sendMail({
-      from: SMTP_FROM,
-      to,
-      subject,
-      text,
-      html,
-      headers: {
-        "X-Mailer": "Canvas MCP",
-      },
-    });
-  }
+		await this.transporter.sendMail({
+			from: SMTP_FROM,
+			to,
+			subject,
+			text,
+			html,
+			headers: {
+				"X-Mailer": "Canvas MCP",
+			},
+		});
+	}
 
-  async sendMagicLink(email: string, token: string): Promise<void> {
-    const magicLink = `${BASE_URL}/auth/verify?token=${token}`;
+	async sendMagicLink(email: string, token: string): Promise<void> {
+		const magicLink = `${BASE_URL}/auth/verify?token=${token}`;
 
-    const html = `<!DOCTYPE html>
+		const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -104,7 +106,7 @@ class Mailer {
 </body>
 </html>`;
 
-    const text = `Sign in to Canvas MCP
+		const text = `Sign in to Canvas MCP
 
 Click this link to sign in:
 ${magicLink}
@@ -112,14 +114,14 @@ ${magicLink}
 This link expires in 15 minutes.
 If you didn't request this, you can safely ignore it.`;
 
-    await this.sendMail(email, "Sign in to Canvas MCP", html, text);
-  }
+		await this.sendMail(email, "Sign in to Canvas MCP", html, text);
+	}
 
-  async sendOAuthConfirmation(
-    email: string,
-    canvasDomain: string
-  ): Promise<void> {
-    const html = `<!DOCTYPE html>
+	async sendOAuthConfirmation(
+		email: string,
+		canvasDomain: string,
+	): Promise<void> {
+		const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -147,7 +149,7 @@ If you didn't request this, you can safely ignore it.`;
 </body>
 </html>`;
 
-    const text = `Canvas Account Connected!
+		const text = `Canvas Account Connected!
 
 Your Canvas account (${canvasDomain}) has been successfully connected.
 
@@ -158,13 +160,13 @@ Next Steps:
 2. Authorize Claude to access your Canvas data
 3. Start asking questions about your courses!`;
 
-    await this.sendMail(
-      email,
-      "Canvas Account Connected - Canvas MCP",
-      html,
-      text
-    );
-  }
+		await this.sendMail(
+			email,
+			"Canvas Account Connected - Canvas MCP",
+			html,
+			text,
+		);
+	}
 }
 
 export default new Mailer();
