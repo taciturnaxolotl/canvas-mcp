@@ -3,6 +3,25 @@ import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const db = new Database(process.env.DATABASE_PATH || "./canvas-mcp.db");
 
+// In-memory cache for verified API keys
+interface ApiKeyCacheEntry {
+  userId: number;
+  verifiedAt: number;
+}
+
+const apiKeyCache = new Map<string, ApiKeyCacheEntry>();
+const CACHE_TTL = parseInt(process.env.API_KEY_CACHE_TTL || "900000"); // 15 minutes default
+
+// Cache cleanup interval (runs every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of apiKeyCache.entries()) {
+    if (now - entry.verifiedAt > CACHE_TTL) {
+      apiKeyCache.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
 // Initialize database schema
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -244,12 +263,33 @@ export const DB = {
     }
   },
 
-  // Get user by API key
+  // Get user by API key (with caching for performance)
   async getUserByApiKey(apiKey: string): Promise<User | null> {
-    const users = db.query("SELECT * FROM users").all() as User[];
+    // Check cache first for O(1) lookup
+    const cached = apiKeyCache.get(apiKey);
+    if (cached && Date.now() - cached.verifiedAt < CACHE_TTL) {
+      // Cache hit - fast path
+      const user = db
+        .query("SELECT * FROM users WHERE id = ?")
+        .get(cached.userId) as User | null;
+
+      if (user) {
+        return user;
+      }
+      // User was deleted - invalidate cache entry
+      apiKeyCache.delete(apiKey);
+    }
+
+    // Cache miss - perform full verification (slow path)
+    const users = db.query("SELECT * FROM users WHERE mcp_api_key IS NOT NULL").all() as User[];
 
     for (const user of users) {
       if (await verifyApiKey(apiKey, user.mcp_api_key)) {
+        // Cache the verified key for future requests
+        apiKeyCache.set(apiKey, {
+          userId: user.id,
+          verifiedAt: Date.now(),
+        });
         return user;
       }
     }
@@ -304,6 +344,13 @@ export const DB = {
 
   // Regenerate API key
   async regenerateApiKey(userId: number): Promise<string> {
+    // Invalidate all cached entries for this user
+    for (const [key, entry] of apiKeyCache.entries()) {
+      if (entry.userId === userId) {
+        apiKeyCache.delete(key);
+      }
+    }
+
     const newApiKey = generateApiKey();
     const hashedApiKey = await hashApiKey(newApiKey);
 
@@ -512,6 +559,26 @@ export const DB = {
     }
 
     return db.query("SELECT * FROM users WHERE id = ?").get(tokenData.user_id) as User | null;
+  },
+
+  // Cache management utilities
+  clearApiKeyCache() {
+    apiKeyCache.clear();
+  },
+
+  invalidateUserCache(userId: number) {
+    for (const [key, entry] of apiKeyCache.entries()) {
+      if (entry.userId === userId) {
+        apiKeyCache.delete(key);
+      }
+    }
+  },
+
+  getApiKeyCacheStats() {
+    return {
+      size: apiKeyCache.size,
+      ttl: CACHE_TTL,
+    };
   },
 };
 

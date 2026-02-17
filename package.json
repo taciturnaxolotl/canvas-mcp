@@ -6,7 +6,7 @@
     "dev": "bun run --hot src/index.ts",
     "build": "bun build --target=bun --production --outdir=dist ./src/index.ts",
     "start": "bun run dist/index.js",
-    "generate-key": "bun run scripts/generate-key.ts"
+    "generate-key": "bun run scripts/generate-key.ts",
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
