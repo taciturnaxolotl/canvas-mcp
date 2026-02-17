@@ -63,7 +63,10 @@ const routes = {
           timestamp: new Date().toISOString(),
           version: "1.0.0",
           uptime: process.uptime(),
-          cache: DB.getApiKeyCacheStats(),
+          cache: {
+            apiKeys: DB.getApiKeyCacheStats(),
+            canvas: CanvasClient.getCacheStats(),
+          },
         });
       }
 

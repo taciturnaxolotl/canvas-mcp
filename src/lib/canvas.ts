@@ -1,29 +1,150 @@
+// Simple in-memory cache with TTL
+interface CacheEntry {
+  data: any;
+  expiresAt: number;
+}
+
+class SimpleCache {
+  private cache = new Map<string, CacheEntry>();
+  private pendingRequests = new Map<string, Promise<any>>();
+
+  get(key: string): any | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  set(key: string, data: any, ttlMs: number): void {
+    this.cache.set(key, {
+      data,
+      expiresAt: Date.now() + ttlMs,
+    });
+  }
+
+  getPendingRequest(key: string): Promise<any> | null {
+    return this.pendingRequests.get(key) || null;
+  }
+
+  setPendingRequest(key: string, promise: Promise<any>): void {
+    this.pendingRequests.set(key, promise);
+    promise.finally(() => this.pendingRequests.delete(key));
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.pendingRequests.clear();
+  }
+
+  // Periodic cleanup of expired entries
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache.entries()) {
+      if (now > entry.expiresAt) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+// Global cache instance (shared across all CanvasClient instances)
+const globalCache = new SimpleCache();
+
+// Cleanup expired cache entries every 5 minutes
+setInterval(() => globalCache.cleanup(), 5 * 60 * 1000);
+
 // Canvas API client
 export class CanvasClient {
+  private cache: SimpleCache;
+
   constructor(
     private domain: string,
-    private accessToken: string
-  ) {}
+    private accessToken: string,
+    private cacheTTL: number = 5 * 60 * 1000 // Default: 5 minutes
+  ) {
+    this.cache = globalCache;
+  }
+
+  private getCacheKey(path: string): string {
+    // Include domain and user token hash in cache key for isolation
+    const tokenHash = this.accessToken.slice(-8);
+    return `${this.domain}:${tokenHash}:${path}`;
+  }
 
   private async request(path: string, options?: RequestInit): Promise<any> {
     const url = `https://${this.domain}/api/v1${path}`;
+    const cacheKey = this.getCacheKey(path);
 
-    const response = await fetch(url, {
+    // Only cache GET requests
+    const isGetRequest = !options?.method || options.method === 'GET';
+
+    if (isGetRequest) {
+      // Check cache first
+      const cached = this.cache.get(cacheKey);
+      if (cached !== null) {
+        return cached;
+      }
+
+      // Check if there's already a pending request for this path (request deduplication)
+      const pending = this.cache.getPendingRequest(cacheKey);
+      if (pending) {
+        return pending;
+      }
+    }
+
+    // Make the request
+    const requestPromise = fetch(url, {
       ...options,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         "Content-Type": "application/json",
         ...options?.headers,
       },
+    }).then(async (response) => {
+      if (!response.ok) {
+        throw new Error(
+          `Canvas API error: ${response.status} ${response.statusText}`
+        );
+      }
+      return response.json();
     });
 
-    if (!response.ok) {
-      throw new Error(
-        `Canvas API error: ${response.status} ${response.statusText}`
-      );
+    // Store pending request for deduplication
+    if (isGetRequest) {
+      this.cache.setPendingRequest(cacheKey, requestPromise);
     }
 
-    return response.json();
+    try {
+      const data = await requestPromise;
+
+      // Cache the result
+      if (isGetRequest) {
+        this.cache.set(cacheKey, data, this.cacheTTL);
+      }
+
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Clear cache for this client (useful for testing or forcing refresh)
+  clearCache(): void {
+    // This clears the entire global cache - could be refined to only clear entries for this user
+    this.cache.clear();
+  }
+
+  // Get cache statistics (for monitoring)
+  static getCacheStats() {
+    return {
+      size: globalCache['cache'].size,
+      pendingRequests: globalCache['pendingRequests'].size
+    };
   }
 
   async getCurrentUser() {
@@ -50,22 +171,26 @@ export class CanvasClient {
       courses = await this.listCourses({ enrollment_state: "active" });
     }
 
-    // Fetch assignments from each course
-    const allAssignments: any[] = [];
-    for (const course of courses) {
-      try {
-        const assignments = await this.request(`/courses/${course.id}/assignments`);
-        // Add course info to each assignment
-        assignments.forEach((assignment: any) => {
-          assignment.course_id = course.id;
-          assignment.course_name = course.name;
-        });
-        allAssignments.push(...assignments);
-      } catch (error) {
-        // Skip courses that fail (e.g., no permission)
-        console.error(`Failed to fetch assignments for course ${course.id}:`, error);
-      }
-    }
+    // Fetch assignments from all courses in parallel
+    const assignmentPromises = courses.map(course =>
+      this.request(`/courses/${course.id}/assignments`)
+        .then(assignments => {
+          // Add course info to each assignment
+          assignments.forEach((assignment: any) => {
+            assignment.course_id = course.id;
+            assignment.course_name = course.name;
+          });
+          return assignments;
+        })
+        .catch(error => {
+          // Skip courses that fail (e.g., no permission)
+          console.error(`Failed to fetch assignments for course ${course.id}:`, error);
+          return [];
+        })
+    );
+
+    const assignmentArrays = await Promise.all(assignmentPromises);
+    const allAssignments = assignmentArrays.flat();
 
     // Filter by search term if provided
     if (params?.search_term) {
@@ -97,23 +222,27 @@ export class CanvasClient {
       // Get announcements for a specific course
       return this.request(`/courses/${courseId}/discussion_topics?only_announcements=true&per_page=${limit}`);
     } else {
-      // Get announcements across all courses
+      // Get announcements across all courses in parallel
       const courses = await this.listCourses({ enrollment_state: "active" });
-      const allAnnouncements: any[] = [];
 
-      for (const course of courses) {
-        try {
-          const announcements = await this.request(`/courses/${course.id}/discussion_topics?only_announcements=true&per_page=5`);
-          announcements.forEach((announcement: any) => {
-            announcement.course_id = course.id;
-            announcement.course_name = course.name;
-          });
-          allAnnouncements.push(...announcements);
-        } catch (error) {
-          // Skip courses that fail
-          console.error(`Failed to fetch announcements for course ${course.id}:`, error);
-        }
-      }
+      const announcementPromises = courses.map(course =>
+        this.request(`/courses/${course.id}/discussion_topics?only_announcements=true&per_page=5`)
+          .then(announcements => {
+            announcements.forEach((announcement: any) => {
+              announcement.course_id = course.id;
+              announcement.course_name = course.name;
+            });
+            return announcements;
+          })
+          .catch(error => {
+            // Skip courses that fail
+            console.error(`Failed to fetch announcements for course ${course.id}:`, error);
+            return [];
+          })
+      );
+
+      const announcementArrays = await Promise.all(announcementPromises);
+      const allAnnouncements = announcementArrays.flat();
 
       // Sort by posted date (most recent first)
       allAnnouncements.sort((a, b) =>
@@ -126,25 +255,24 @@ export class CanvasClient {
 
   async getGradesAndSubmissions(courseId?: number) {
     if (courseId) {
-      // Get submissions for a specific course
-      const enrollments = await this.request(`/courses/${courseId}/enrollments?user_id=self&include[]=current_grading_period_scores&include[]=total_scores`);
-      const assignments = await this.request(`/courses/${courseId}/assignments?include[]=submission`);
+      // Get submissions for a specific course - parallelize these two requests
+      const [enrollments, assignments] = await Promise.all([
+        this.request(`/courses/${courseId}/enrollments?user_id=self&include[]=current_grading_period_scores&include[]=total_scores`),
+        this.request(`/courses/${courseId}/assignments?include[]=submission`)
+      ]);
 
       return {
         enrollments,
         assignments
       };
     } else {
-      // Get grades across all courses
+      // Get grades across all courses in parallel
       const courses = await this.listCourses({ enrollment_state: "active" });
-      const allGrades: any[] = [];
 
-      for (const course of courses) {
-        try {
-          const enrollments = await this.request(`/courses/${course.id}/enrollments?user_id=self&include[]=current_grading_period_scores&include[]=total_scores`);
-
-          enrollments.forEach((enrollment: any) => {
-            allGrades.push({
+      const gradePromises = courses.map(course =>
+        this.request(`/courses/${course.id}/enrollments?user_id=self&include[]=current_grading_period_scores&include[]=total_scores`)
+          .then(enrollments => {
+            return enrollments.map((enrollment: any) => ({
               course_id: course.id,
               course_name: course.name,
               course_code: course.course_code,
@@ -152,14 +280,16 @@ export class CanvasClient {
               current_score: enrollment.grades?.current_score,
               final_grade: enrollment.grades?.final_grade,
               final_score: enrollment.grades?.final_score
-            });
-          });
-        } catch (error) {
-          console.error(`Failed to fetch grades for course ${course.id}:`, error);
-        }
-      }
+            }));
+          })
+          .catch(error => {
+            console.error(`Failed to fetch grades for course ${course.id}:`, error);
+            return [];
+          })
+      );
 
-      return allGrades;
+      const gradeArrays = await Promise.all(gradePromises);
+      return gradeArrays.flat();
     }
   }
 }
