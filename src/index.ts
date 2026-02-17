@@ -41,6 +41,16 @@ const routes = {
   "/": indexPage,
   "/dashboard": dashboardPage,
 
+  // Favicon
+  "/favicon.ico": {
+    GET() {
+      const file = Bun.file("src/public/favicon.ico");
+      return new Response(file, {
+        headers: { "Content-Type": "image/x-icon" },
+      });
+    },
+  },
+
   // MCP Protocol endpoint (Streamable HTTP)
   "/mcp": {
     async POST(req: Request) {
