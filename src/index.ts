@@ -51,6 +51,25 @@ const routes = {
     },
   },
 
+  // Health check endpoint
+  "/health": {
+    GET(req: Request) {
+      const url = new URL(req.url);
+      const detailed = url.searchParams.get("detailed") === "true";
+
+      if (detailed) {
+        return Response.json({
+          status: "healthy",
+          timestamp: new Date().toISOString(),
+          version: "1.0.0",
+          uptime: process.uptime(),
+        });
+      }
+
+      return Response.json({ status: "healthy" });
+    },
+  },
+
   // MCP Protocol endpoint (Streamable HTTP)
   "/mcp": {
     async POST(req: Request) {
