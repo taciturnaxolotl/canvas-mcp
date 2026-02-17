@@ -479,33 +479,68 @@
       showNotification('Configuration copied to clipboard');
     });
 
+    let regenerateState = 'initial'; // 'initial', 'confirm', 'show-token'
+    let newToken = null;
+
     document.getElementById('regenerateBtn').addEventListener('click', async () => {
-      if (!confirm('Regenerate API token? This will invalidate your current token and disconnect all MCP clients.')) {
-        return;
-      }
+      const btn = document.getElementById('regenerateBtn');
 
-      try {
-        const response = await fetch('/api/user/regenerate-key', {
-          method: 'POST',
-          credentials: 'include'
-        });
+      if (regenerateState === 'initial') {
+        // First click: show confirmation
+        regenerateState = 'confirm';
+        btn.textContent = 'Click again to confirm';
+        btn.style.background = '#c33';
 
-        const data = await response.json();
-        userData.api_key = data.api_key;
+        // Reset after 3 seconds if not confirmed
+        setTimeout(() => {
+          if (regenerateState === 'confirm') {
+            regenerateState = 'initial';
+            btn.textContent = 'Regenerate Token';
+            btn.style.background = '';
+          }
+        }, 3000);
+      } else if (regenerateState === 'confirm') {
+        // Second click: regenerate
+        btn.disabled = true;
+        btn.textContent = 'Regenerating...';
 
-        // Show the new key
-        document.getElementById('apiKeyHidden').style.display = 'none';
-        document.getElementById('apiKeyDisplay').style.display = 'block';
-        document.getElementById('apiKeyValue').textContent = userData.api_key;
-        apiKeyVisible = true;
-        updateMCPConfig();
+        try {
+          const response = await fetch('/api/user/regenerate-key', {
+            method: 'POST',
+            credentials: 'include'
+          });
 
-        // Hide test result
-        document.getElementById('testResult').style.display = 'none';
+          const data = await response.json();
+          userData.api_key = data.api_key;
+          newToken = data.api_key;
 
-        showNotification('API token regenerated successfully');
-      } catch (error) {
-        alert('Failed to regenerate API token');
+          // Show the new key
+          document.getElementById('apiKeyHidden').style.display = 'none';
+          document.getElementById('apiKeyDisplay').style.display = 'block';
+          document.getElementById('apiKeyValue').textContent = userData.api_key;
+          apiKeyVisible = true;
+          updateMCPConfig();
+
+          regenerateState = 'show-token';
+          btn.disabled = false;
+          btn.textContent = 'Click to copy new token';
+          btn.style.background = '#0066cc';
+        } catch (error) {
+          regenerateState = 'initial';
+          btn.disabled = false;
+          btn.textContent = 'Regenerate Token';
+          btn.style.background = '';
+          showNotification('Failed to regenerate token');
+        }
+      } else if (regenerateState === 'show-token') {
+        // Third click: copy token
+        await navigator.clipboard.writeText(newToken);
+        showNotification('New token copied to clipboard');
+
+        // Reset button
+        regenerateState = 'initial';
+        btn.textContent = 'Regenerate Token';
+        btn.style.background = '';
       }
     });
 
