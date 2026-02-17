@@ -1,7 +1,13 @@
 node_modules/
 .env
+.env.email
 *.db
 *.db-shm
 *.db-wal
 dist/
 .DS_Store
+
+# Sensitive keys
+dkim_private.pem
+private.pem
+public.pem

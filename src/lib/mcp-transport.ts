@@ -10,6 +10,7 @@ export async function handleMcpRequest(
 ): Promise<Response> {
   // Validate API token
   if (!apiToken) {
+    const baseUrl = process.env.BASE_URL || "http://localhost:3000";
     return new Response(
       JSON.stringify({
         jsonrpc: "2.0",
@@ -23,21 +24,27 @@ export async function handleMcpRequest(
         status: 401,
         headers: {
           "Content-Type": "application/json",
-          "WWW-Authenticate": `Bearer realm="Canvas MCP Server"`,
+          "WWW-Authenticate": `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource", scope="canvas:read canvas:courses:read"`,
         },
       }
     );
   }
 
-  // Look up user by API key
-  const user = await DB.getUserByApiKey(apiToken);
+  // Look up user by API key or OAuth token
+  let user = await DB.getUserByApiKey(apiToken);
+
+  // If not found as API key, try as OAuth token
+  if (!user) {
+    user = DB.getUserByOAuthToken(apiToken);
+  }
+
   if (!user) {
     return new Response(
       JSON.stringify({
         jsonrpc: "2.0",
         error: {
           code: -32001,
-          message: "Invalid or expired API token",
+          message: "Invalid or expired token",
         },
         id: null,
       }),

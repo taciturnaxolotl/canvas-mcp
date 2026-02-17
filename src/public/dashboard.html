@@ -205,7 +205,50 @@
     <button class="logout-btn" id="logoutBtn">Logout</button>
   </header>
 
-  <section>
+  <section id="connectCanvasSection" style="display: none;">
+    <h2>Connect Canvas Account</h2>
+    <p style="color: #666; margin-bottom: 1.5rem;">
+      Connect your Canvas account to start using the MCP server with Claude.
+    </p>
+    <form id="connectCanvasForm">
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Canvas Domain</label>
+        <input
+          type="text"
+          id="canvasDomain"
+          placeholder="canvas.university.edu"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;"
+          required
+        />
+      </div>
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Personal Access Token</label>
+        <input
+          type="password"
+          id="accessToken"
+          placeholder="Get this from Canvas → Settings → New Access Token"
+          style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;"
+          required
+        />
+      </div>
+      <button type="submit" style="width: 100%; padding: 0.75rem;">Connect Canvas</button>
+      <div id="connectError" style="display: none; margin-top: 1rem; padding: 0.75rem; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c33;"></div>
+    </form>
+    <details style="margin-top: 1.5rem;">
+      <summary style="cursor: pointer; color: #666;">How to get a Personal Access Token</summary>
+      <ol style="margin-top: 1rem; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
+        <li>Log in to your Canvas account</li>
+        <li>Go to Account → Settings</li>
+        <li>Scroll to "Approved Integrations"</li>
+        <li>Click "+ New Access Token"</li>
+        <li>Set Purpose: "MCP Server"</li>
+        <li>Click "Generate Token"</li>
+        <li>Copy the token and paste it above</li>
+      </ol>
+    </details>
+  </section>
+
+  <section id="accountSection" style="display: none;">
     <h2>Account Information</h2>
     <div class="info-grid" id="accountInfo">
       <div class="info-row">
@@ -214,7 +257,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="mcpConnectionSection" style="display: none;">
     <h2>MCP Server Connection</h2>
     <p style="color: #666; margin-bottom: 1.5rem;">
       Use these credentials to connect your MCP client (Claude Desktop, Cursor, etc.) to your Canvas account.
@@ -264,7 +307,7 @@
     </div>
   </section>
 
-  <section>
+  <section id="quickSetupSection" style="display: none;">
     <h2>Quick Setup</h2>
     <p style="color: #666; margin-bottom: 1rem;">
       Add this configuration to your Claude Desktop config file:
@@ -281,7 +324,7 @@
     <button id="copyConfigBtn" style="margin-top: 1rem;">Copy Configuration</button>
   </section>
 
-  <section>
+  <section id="usageStatsSection" style="display: none;">
     <h2>Usage Statistics</h2>
     <div class="stat-grid" id="usageStats">
       <div class="stat">
@@ -309,10 +352,27 @@
         }
 
         userData = await response.json();
-        renderAccountInfo();
-        renderUsageStats();
-        setupApiKeyDisplay();
-        updateMCPConfig();
+
+        // Check if Canvas is connected
+        if (!userData.canvas_domain) {
+          // Show Canvas connection form, hide everything else
+          document.getElementById('connectCanvasSection').style.display = 'block';
+          document.getElementById('accountSection').style.display = 'none';
+          document.getElementById('mcpConnectionSection').style.display = 'none';
+          document.getElementById('quickSetupSection').style.display = 'none';
+          document.getElementById('usageStatsSection').style.display = 'none';
+        } else {
+          // Show everything when Canvas is connected
+          document.getElementById('connectCanvasSection').style.display = 'none';
+          document.getElementById('accountSection').style.display = 'block';
+          document.getElementById('mcpConnectionSection').style.display = 'block';
+          document.getElementById('quickSetupSection').style.display = 'block';
+          document.getElementById('usageStatsSection').style.display = 'block';
+          renderAccountInfo();
+          renderUsageStats();
+          setupApiKeyDisplay();
+          updateMCPConfig();
+        }
       } catch (error) {
         console.error('Failed to load dashboard:', error);
         window.location.href = '/';
@@ -455,6 +515,45 @@
         credentials: 'include'
       });
       window.location.href = '/';
+    });
+
+    document.getElementById('connectCanvasForm')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const domain = document.getElementById('canvasDomain').value.trim();
+      const token = document.getElementById('accessToken').value.trim();
+      const errorDiv = document.getElementById('connectError');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+
+      errorDiv.style.display = 'none';
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Connecting...';
+
+      try {
+        const response = await fetch('/api/auth/token-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            canvas_domain: domain,
+            access_token: token
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to connect Canvas');
+        }
+
+        // Reload dashboard to show connected state
+        window.location.reload();
+      } catch (error) {
+        errorDiv.textContent = error.message;
+        errorDiv.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Connect Canvas';
+      }
     });
 
     loadDashboard();

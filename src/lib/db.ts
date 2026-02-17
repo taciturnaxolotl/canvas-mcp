@@ -7,13 +7,13 @@ const db = new Database(process.env.DATABASE_PATH || "./canvas-mcp.db");
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    canvas_user_id TEXT UNIQUE NOT NULL,
-    canvas_domain TEXT NOT NULL,
+    canvas_user_id TEXT,
+    canvas_domain TEXT,
     email TEXT,
-    canvas_access_token TEXT NOT NULL,
+    canvas_access_token TEXT,
     canvas_refresh_token TEXT,
-    mcp_api_key TEXT UNIQUE NOT NULL,
-    created_at INTEGER NOT NULL,
+    mcp_api_key TEXT UNIQUE,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
     last_used_at INTEGER,
     token_expires_at INTEGER
   );
@@ -36,10 +36,46 @@ db.exec(`
     expires_at INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS magic_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used INTEGER DEFAULT 0,
+    created_at INTEGER DEFAULT (unixepoch() * 1000)
+  );
+
+  CREATE TABLE IF NOT EXISTS auth_codes (
+    code TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    client_id TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    code_challenge_method TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch() * 1000),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS oauth_tokens (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    scope TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER DEFAULT (unixepoch() * 1000),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_users_api_key ON users(mcp_api_key);
   CREATE INDEX IF NOT EXISTS idx_users_canvas_id ON users(canvas_user_id);
+  CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_usage_logs_user_id ON usage_logs(user_id);
   CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_magic_links_token ON magic_links(token);
+  CREATE INDEX IF NOT EXISTS idx_magic_links_email ON magic_links(email);
+  CREATE INDEX IF NOT EXISTS idx_auth_codes_code ON auth_codes(code);
+  CREATE INDEX IF NOT EXISTS idx_oauth_tokens_token ON oauth_tokens(token);
 `);
 
 // Encryption utilities
@@ -124,36 +160,59 @@ export const DB = {
       ? encrypt(data.canvas_refresh_token)
       : null;
 
-    // Check if user exists
-    const existing = db
+    // Check if user exists by canvas_user_id or email
+    let existing = db
       .query("SELECT * FROM users WHERE canvas_user_id = ?")
       .get(data.canvas_user_id) as User | null;
 
+    // If not found by canvas_user_id, check by email (for magic link users)
+    if (!existing && data.email) {
+      existing = db
+        .query("SELECT * FROM users WHERE email = ? AND canvas_user_id IS NULL")
+        .get(data.email) as User | null;
+    }
+
     if (existing) {
-      // Update existing user
+      // Check if user needs an API key (magic link users)
+      let apiKey: string | null = null;
+      let hashedApiKey = existing.mcp_api_key;
+
+      if (!hashedApiKey) {
+        // Generate API key for magic link users connecting Canvas for first time
+        apiKey = generateApiKey();
+        hashedApiKey = await hashApiKey(apiKey);
+      }
+
+      // Update existing user (might not have canvas_user_id if from magic link)
       db.run(
         `UPDATE users SET
+          canvas_user_id = ?,
+          canvas_domain = ?,
           canvas_access_token = ?,
           canvas_refresh_token = ?,
           token_expires_at = ?,
-          last_used_at = ?
-        WHERE canvas_user_id = ?`,
+          last_used_at = ?,
+          mcp_api_key = ?
+        WHERE id = ?`,
         [
+          data.canvas_user_id,
+          data.canvas_domain,
           encryptedToken,
           encryptedRefreshToken,
           data.token_expires_at,
           Date.now(),
-          data.canvas_user_id,
+          hashedApiKey,
+          existing.id,
         ]
       );
 
       const user = db
-        .query("SELECT * FROM users WHERE canvas_user_id = ?")
-        .get(data.canvas_user_id) as User;
+        .query("SELECT * FROM users WHERE id = ?")
+        .get(existing.id) as User;
 
-      // Return null for existing users - they need to regenerate if they lost it
-      // We can't return the plaintext key since it's hashed in the database
-      return { user, apiKey: null, isNewUser: false };
+      // Return API key only if we just generated it (for magic link users)
+      const isNewUser = apiKey !== null;
+      return { user, apiKey, isNewUser };
     } else {
       // Create new user with API key
       const apiKey = generateApiKey();
@@ -327,6 +386,132 @@ export const DB = {
     return db
       .query("SELECT * FROM sessions WHERE api_key = ? AND expires_at > ?")
       .get(token, Date.now()) as any;
+  },
+
+  // Magic link authentication
+  createMagicLink(email: string, token: string, expiresAt: number) {
+    return db.run(
+      "INSERT INTO magic_links (email, token, expires_at) VALUES (?, ?, ?)",
+      [email, token, expiresAt]
+    );
+  },
+
+  getMagicLink(token: string) {
+    // Clean up expired magic links
+    db.run("DELETE FROM magic_links WHERE expires_at < ?", [Date.now()]);
+
+    return db
+      .query(
+        "SELECT * FROM magic_links WHERE token = ? AND expires_at > ? AND used = 0"
+      )
+      .get(token, Date.now()) as any;
+  },
+
+  markMagicLinkUsed(token: string) {
+    return db.run("UPDATE magic_links SET used = 1 WHERE token = ?", [token]);
+  },
+
+  getUserByEmail(email: string) {
+    return db.query("SELECT * FROM users WHERE email = ?").get(email) as any;
+  },
+
+  // Update user with Canvas credentials (for magic link users)
+  async updateUserCanvas(
+    userId: number,
+    canvasUserId: string,
+    canvasDomain: string,
+    canvasToken: string
+  ): Promise<{ apiKey: string | null }> {
+    const existing = db.query("SELECT * FROM users WHERE id = ?").get(userId) as User | null;
+
+    if (!existing) {
+      throw new Error("User not found");
+    }
+
+    const encryptedToken = encrypt(canvasToken);
+
+    // Generate API key if user doesn't have one
+    let apiKey: string | null = null;
+    let hashedApiKey = existing.mcp_api_key;
+
+    if (!hashedApiKey) {
+      apiKey = generateApiKey();
+      hashedApiKey = await hashApiKey(apiKey);
+    }
+
+    // Update user with Canvas credentials
+    db.run(
+      `UPDATE users SET
+        canvas_user_id = ?,
+        canvas_domain = ?,
+        canvas_access_token = ?,
+        mcp_api_key = ?,
+        last_used_at = ?
+      WHERE id = ?`,
+      [
+        canvasUserId,
+        canvasDomain,
+        encryptedToken,
+        hashedApiKey,
+        Date.now(),
+        userId,
+      ]
+    );
+
+    return { apiKey };
+  },
+
+  // Rate limiting for magic links
+  canSendMagicLink(email: string, cooldownMs: number = 60000): boolean {
+    // Clean up old magic links first
+    db.run("DELETE FROM magic_links WHERE expires_at < ?", [Date.now()]);
+
+    // Check if a magic link was sent recently (within cooldown period)
+    const recent = db
+      .query(
+        "SELECT * FROM magic_links WHERE email = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1"
+      )
+      .get(email, Date.now() - cooldownMs) as any;
+
+    return !recent;
+  },
+
+  getLastMagicLinkTime(email: string): number | null {
+    const recent = db
+      .query(
+        "SELECT created_at FROM magic_links WHERE email = ? ORDER BY created_at DESC LIMIT 1"
+      )
+      .get(email) as any;
+
+    return recent ? recent.created_at : null;
+  },
+
+  // OAuth tokens
+  createOAuthToken(userId: number, scope: string, expiresIn: number = 86400000): string {
+    const token = generateApiKey(); // Reuse the API key generator
+    const expiresAt = Date.now() + expiresIn;
+
+    db.run(
+      "INSERT INTO oauth_tokens (token, user_id, scope, expires_at) VALUES (?, ?, ?, ?)",
+      [token, userId, scope, expiresAt]
+    );
+
+    return token;
+  },
+
+  getUserByOAuthToken(token: string): User | null {
+    // Clean up expired tokens
+    db.run("DELETE FROM oauth_tokens WHERE expires_at < ?", [Date.now()]);
+
+    const tokenData = db
+      .query("SELECT * FROM oauth_tokens WHERE token = ? AND expires_at > ?")
+      .get(token, Date.now()) as any;
+
+    if (!tokenData) {
+      return null;
+    }
+
+    return db.query("SELECT * FROM users WHERE id = ?").get(tokenData.user_id) as User | null;
   },
 };
 

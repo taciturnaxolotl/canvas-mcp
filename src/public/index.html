@@ -120,6 +120,20 @@
       display: block;
     }
 
+    .success {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 4px;
+      color: #155724;
+      display: none;
+    }
+
+    .success.show {
+      display: block;
+    }
+
     footer {
       margin-top: 4rem;
       padding-top: 2rem;
@@ -137,11 +151,11 @@
   </header>
 
   <section>
-    <h2>Features</h2>
+    <h2>How It Works</h2>
     <ul>
-      <li>Direct integration with Claude Desktop and other MCP clients</li>
-      <li>Personal Access Token authentication (no admin access needed)</li>
-      <li>Access courses, assignments, and grades from your AI assistant</li>
+      <li>Sign in with your email (no password needed)</li>
+      <li>Connect your Canvas account with OAuth 2.1</li>
+      <li>Use Claude Desktop to ask questions about your courses</li>
       <li>Works with any Canvas institution</li>
     </ul>
   </section>
@@ -149,43 +163,24 @@
   <section class="login-form">
     <h2>Get Started</h2>
     <form id="loginForm">
-      <label for="canvasDomain">Canvas Domain</label>
+      <label for="email">Email Address</label>
       <input
-        type="text"
-        id="canvasDomain"
-        name="canvasDomain"
-        placeholder="canvas.university.edu"
-        autocomplete="off"
+        type="email"
+        id="email"
+        name="email"
+        placeholder="your.email@school.edu"
+        autocomplete="email"
         required
       />
 
-      <label for="accessToken" style="margin-top: 1rem;">Personal Access Token</label>
-      <input
-        type="password"
-        id="accessToken"
-        name="accessToken"
-        placeholder="Get this from Canvas → Settings → New Access Token"
-        autocomplete="off"
-        required
-      />
-
-      <button type="submit">Connect Canvas</button>
+      <button type="submit">Send Sign-In Link</button>
       <div id="error" class="error"></div>
+      <div id="success" class="success"></div>
     </form>
 
-    <details style="margin-top: 1.5rem;">
-      <summary style="cursor: pointer; color: #666;">How to get a Personal Access Token</summary>
-      <ol style="margin-top: 1rem; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
-        <li>Log in to your Canvas account</li>
-        <li>Go to Account → Settings</li>
-        <li>Scroll to "Approved Integrations"</li>
-        <li>Click "+ New Access Token"</li>
-        <li>Set Purpose: "MCP Server"</li>
-        <li>Set Expires: (optional, max 120 days)</li>
-        <li>Click "Generate Token"</li>
-        <li>Copy the token and paste it above</li>
-      </ol>
-    </details>
+    <p style="margin-top: 1.5rem; font-size: 0.9rem; color: #666;">
+      We'll send you a magic link to sign in. No password required.
+    </p>
   </section>
 
   <footer>
@@ -204,58 +199,65 @@
 
     const form = document.getElementById('loginForm');
     const errorDiv = document.getElementById('error');
+    const successDiv = document.getElementById('success');
 
     function showError(message) {
       errorDiv.textContent = message;
       errorDiv.classList.add('show');
+      successDiv.classList.remove('show');
     }
 
-    function hideError() {
+    function showSuccess(message) {
+      successDiv.textContent = message;
+      successDiv.classList.add('show');
       errorDiv.classList.remove('show');
+    }
+
+    function hideMessages() {
+      errorDiv.classList.remove('show');
+      successDiv.classList.remove('show');
     }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      hideError();
+      hideMessages();
 
-      const domain = document.getElementById('canvasDomain').value.trim();
-      const token = document.getElementById('accessToken').value.trim();
+      const email = document.getElementById('email').value.trim();
 
-      if (!domain || !token) {
-        showError('Please fill in all fields');
+      if (!email) {
+        showError('Please enter your email address');
         return;
       }
 
-      if (!domain.includes('.')) {
-        showError('Please enter a valid domain (e.g., canvas.university.edu)');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showError('Please enter a valid email address');
         return;
       }
 
       const submitBtn = form.querySelector('button');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Connecting...';
+      submitBtn.textContent = 'Sending...';
 
       try {
-        const response = await fetch('/api/auth/token-login', {
+        const response = await fetch('/api/auth/request-magic-link', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            canvas_domain: domain,
-            access_token: token
-          })
+          body: JSON.stringify({ email })
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to connect');
+          throw new Error(data.error || 'Failed to send magic link');
         }
 
-        window.location.href = '/dashboard';
+        showSuccess(`Check your email! We sent a sign-in link to ${email}`);
+        form.reset();
       } catch (error) {
         showError(error.message);
+      } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Connect Canvas';
+        submitBtn.textContent = 'Send Sign-In Link';
       }
     });
   </script>
