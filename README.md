@@ -1,15 +1,6 @@
 # Canvas MCP Server
 
-A proper MCP (Model Context Protocol) server that connects Canvas LMS to AI assistants like Claude Desktop.
-
-## Features
-
-- **Proper MCP Protocol**: Implements Streamable HTTP transport with JSON-RPC
-- **Personal Access Token Auth**: Students set up in 2 minutes (no admin access needed)
-- **Multi-Institution Support**: Works with any Canvas instance
-- **Encrypted Storage**: Canvas tokens encrypted at rest with AES-256-GCM
-- **Session Persistence**: Sessions survive server restarts (stored in SQLite)
-- **Built with Bun**: Fast, modern TypeScript using `@modelcontextprotocol/sdk`
+This is a stream http transport Canvas LMS mcp server. A nice fancy bit of goblygook that just means its a remote integration you can plug into chatgpt, claude, poke, or anywhere else that supports mcp. If you want to try the hosted version its over at [canvas.dunkirk.sh](https://canvas.dunkirk.sh) or feel free to self host!
 
 ## Quick Start
 
@@ -29,15 +20,6 @@ bun dev
 ```
 
 Visit `http://localhost:3000` to connect your Canvas account.
-
-## How It Works
-
-1. **Web Interface**: Students enter Canvas domain + Personal Access Token
-2. **Verification**: Server validates token by calling Canvas API
-3. **Token Storage**: Canvas token encrypted and stored server-side
-4. **MCP Token**: User receives an MCP connection token for their AI client
-5. **MCP Protocol**: AI client connects to `/mcp` endpoint with Bearer token
-6. **Canvas Proxy**: Server proxies tool calls to Canvas using stored token
 
 ## MCP Tools
 
@@ -62,24 +44,11 @@ After connecting your Canvas account, add this to Claude Desktop config:
 }
 ```
 
-## Architecture
-
-- **MCP Server**: `@modelcontextprotocol/sdk` with Streamable HTTP transport
-- **Web Dashboard**: Bun.serve with HTML/CSS/JS (no frameworks)
-- **Database**: SQLite with encrypted Canvas tokens and persistent sessions
-- **Transport**: JSON-RPC over HTTP POST at `/mcp` endpoint
-
 ## Security
 
 - Canvas tokens encrypted with AES-256-GCM before storage
 - MCP tokens hashed with Argon2id (cannot be retrieved after creation)
-- Sessions stored in database (survive restarts)
-- HTTPS enforced in production
 - No Canvas tokens exposed to MCP clients
-
-## Deployment
-
-Deployed at: `https://canvas.dunkirk.sh`
 
 The canonical repo is hosted on tangled at [`knot.dunkirk.sh/canvas-mcp`](https://tangled.org/knot.dunkirk.sh/canvas-mcp)
 
