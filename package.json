@@ -1,0 +1,18 @@
+{
+  "name": "canvas-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --hot src/index.ts",
+    "build": "bun build --target=bun --production --outdir=dist ./src/index.ts",
+    "start": "bun run dist/index.js",
+    "generate-key": "bun run scripts/generate-key.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

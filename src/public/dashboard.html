@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Canvas MCP</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 2rem;
+      color: #111;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #ddd;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #111;
+    }
+
+    .logout-btn {
+      background: #c33;
+    }
+
+    .logout-btn:hover {
+      background: #a22;
+    }
+
+    section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    .info-grid {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #eee;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .label {
+      font-weight: 500;
+      color: #555;
+    }
+
+    .value {
+      color: #111;
+      font-family: monospace;
+      font-size: 0.95rem;
+    }
+
+    .api-key-section {
+      background: #f9f9f9;
+      padding: 1rem;
+      border-radius: 4px;
+    }
+
+    .api-key-display {
+      display: flex;
+      gap: 0.5rem;
+      margin: 1rem 0;
+    }
+
+    .api-key-value {
+      flex: 1;
+      padding: 0.75rem;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .api-key-value:hover {
+      background: #f8f9fa;
+    }
+
+    .api-key-value.hidden {
+      filter: blur(6px);
+      user-select: none;
+    }
+
+    #mcpUrlValue {
+      user-select: all;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .config-block {
+      background: #2d2d2d;
+      color: #f0f0f0;
+      padding: 1rem;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin-top: 1rem;
+      white-space: pre;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .notification {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #2d2d2d;
+      color: white;
+      padding: 1rem 1.5rem;
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    .notification.show {
+      opacity: 1;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .stat {
+      text-align: center;
+      padding: 1rem;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #0066cc;
+    }
+
+    .stat-label {
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Dashboard</h1>
+    <button class="logout-btn" id="logoutBtn">Logout</button>
+  </header>
+
+  <section>
+    <h2>Account Information</h2>
+    <div class="info-grid" id="accountInfo">
+      <div class="info-row">
+        <span class="label">Loading...</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>MCP Server Connection</h2>
+    <p style="color: #666; margin-bottom: 1.5rem;">
+      Use these credentials to connect your MCP client (Claude Desktop, Cursor, etc.) to your Canvas account.
+    </p>
+
+    <!-- MCP Endpoint URL -->
+    <div style="margin-bottom: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <label style="font-weight: 600; color: #111;">MCP Server URL</label>
+        <button id="copyUrlBtn" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Copy URL</button>
+      </div>
+      <div class="api-key-value" id="mcpUrlValue">
+        <span id="mcpUrl"></span>
+      </div>
+      <p style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+        This is your MCP server endpoint URL. You'll need this for Claude Desktop configuration.
+      </p>
+    </div>
+
+    <!-- API Token -->
+    <div class="api-key-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <label style="font-weight: 600; color: #111;">API Token</label>
+        <button id="regenerateBtn" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Regenerate Token</button>
+      </div>
+
+      <div id="apiKeyDisplay" style="display: none;">
+        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+          <strong>⚠️ Save this token now!</strong> You won't be able to see it again after leaving this page.
+        </div>
+        <div class="api-key-display">
+          <div class="api-key-value" id="apiKeyValue"></div>
+          <button id="copyKeyBtn">Copy Token</button>
+        </div>
+      </div>
+
+      <div id="apiKeyHidden" style="display: none;">
+        <div class="api-key-display">
+          <div class="api-key-value" style="background: #f5f5f5; color: #999; user-select: none;">
+            ••••••••••••••••••••••••••••••••••••••••
+          </div>
+        </div>
+        <p style="color: #666; margin-top: 0.5rem; font-size: 0.85rem;">
+          Your token is hidden for security. Click "Regenerate Token" above to create a new one.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Quick Setup</h2>
+    <p style="color: #666; margin-bottom: 1rem;">
+      Add this configuration to your Claude Desktop config file:
+    </p>
+    <div style="background: #f9f9f9; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+      <p style="font-size: 0.9rem; margin-bottom: 0.5rem;">
+        <strong>Config File Location:</strong>
+      </p>
+      <code style="display: block; padding: 0.5rem; background: white; border-radius: 4px; font-size: 0.85rem;">
+        ~/Library/Application Support/Claude/claude_desktop_config.json
+      </code>
+    </div>
+    <pre class="config-block" id="configBlock"></pre>
+    <button id="copyConfigBtn" style="margin-top: 1rem;">Copy Configuration</button>
+  </section>
+
+  <section>
+    <h2>Usage Statistics</h2>
+    <div class="stat-grid" id="usageStats">
+      <div class="stat">
+        <div class="stat-value">-</div>
+        <div class="stat-label">Loading...</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="notification" id="notification"></div>
+
+  <script type="module">
+    let userData = null;
+    let apiKeyVisible = false;
+
+    async function loadDashboard() {
+      try {
+        const response = await fetch('/api/user/me', {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          window.location.href = '/';
+          return;
+        }
+
+        userData = await response.json();
+        renderAccountInfo();
+        renderUsageStats();
+        setupApiKeyDisplay();
+        updateMCPConfig();
+      } catch (error) {
+        console.error('Failed to load dashboard:', error);
+        window.location.href = '/';
+      }
+    }
+
+    function renderAccountInfo() {
+      const container = document.getElementById('accountInfo');
+      container.innerHTML = `
+        <div class="info-row">
+          <span class="label">Canvas Domain</span>
+          <span class="value">${userData.canvas_domain}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Email</span>
+          <span class="value">${userData.email || 'Not provided'}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Created</span>
+          <span class="value">${new Date(userData.created_at).toLocaleDateString()}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Last Used</span>
+          <span class="value">${userData.last_used_at ? new Date(userData.last_used_at).toLocaleDateString() : 'Never'}</span>
+        </div>
+      `;
+    }
+
+    function renderUsageStats() {
+      const container = document.getElementById('usageStats');
+      const stats = userData.usage_stats || {};
+      container.innerHTML = `
+        <div class="stat">
+          <div class="stat-value">${stats.total_requests || 0}</div>
+          <div class="stat-label">Total Requests</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">${stats.requests_24h || 0}</div>
+          <div class="stat-label">Last 24 Hours</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">${stats.requests_7d || 0}</div>
+          <div class="stat-label">Last 7 Days</div>
+        </div>
+      `;
+    }
+
+    function updateMCPConfig() {
+      const token = apiKeyVisible ? userData.api_key : "YOUR_MCP_TOKEN_HERE";
+      const config = {
+        mcpServers: {
+          canvas: {
+            url: `${window.location.origin}/mcp`,
+            headers: {
+              "Authorization": `Bearer ${token}`
+            }
+          }
+        }
+      };
+
+      document.getElementById('configBlock').textContent = JSON.stringify(config, null, 2);
+    }
+
+    function showNotification(message) {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.classList.add('show');
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, 2000);
+    }
+
+    function setupApiKeyDisplay() {
+      // Always show the MCP URL
+      const mcpUrl = `${window.location.origin}/mcp`;
+      document.getElementById('mcpUrl').textContent = mcpUrl;
+
+      if (userData.api_key) {
+        // Show the key (first time only)
+        document.getElementById('apiKeyDisplay').style.display = 'block';
+        document.getElementById('apiKeyValue').textContent = userData.api_key;
+        apiKeyVisible = true;
+        updateMCPConfig();
+      } else {
+        // Hide the key
+        document.getElementById('apiKeyHidden').style.display = 'block';
+      }
+    }
+
+    document.getElementById('copyUrlBtn').addEventListener('click', async () => {
+      const mcpUrl = `${window.location.origin}/mcp`;
+      await navigator.clipboard.writeText(mcpUrl);
+      showNotification('MCP URL copied to clipboard');
+    });
+
+    document.getElementById('copyKeyBtn').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(userData.api_key);
+      showNotification('API token copied to clipboard');
+    });
+
+    document.getElementById('copyConfigBtn').addEventListener('click', async () => {
+      const configText = document.getElementById('configBlock').textContent;
+      await navigator.clipboard.writeText(configText);
+      showNotification('Configuration copied to clipboard');
+    });
+
+    document.getElementById('regenerateBtn').addEventListener('click', async () => {
+      if (!confirm('Regenerate API token? This will invalidate your current token and disconnect all MCP clients.')) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/user/regenerate-key', {
+          method: 'POST',
+          credentials: 'include'
+        });
+
+        const data = await response.json();
+        userData.api_key = data.api_key;
+
+        // Show the new key
+        document.getElementById('apiKeyHidden').style.display = 'none';
+        document.getElementById('apiKeyDisplay').style.display = 'block';
+        document.getElementById('apiKeyValue').textContent = userData.api_key;
+        apiKeyVisible = true;
+        updateMCPConfig();
+
+        // Hide test result
+        document.getElementById('testResult').style.display = 'none';
+
+        showNotification('API token regenerated successfully');
+      } catch (error) {
+        alert('Failed to regenerate API token');
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      window.location.href = '/';
+    });
+
+    loadDashboard();
+  </script>
+</body>
+</html>

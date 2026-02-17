@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas MCP Server</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      max-width: 600px;
+      margin: 4rem auto;
+      padding: 2rem;
+      color: #111;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    p {
+      color: #555;
+      margin-bottom: 2rem;
+    }
+
+    section {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    section h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    ul {
+      list-style: none;
+      padding-left: 1rem;
+    }
+
+    li {
+      padding: 0.25rem 0;
+      color: #555;
+    }
+
+    li::before {
+      content: "→ ";
+      margin-right: 0.5rem;
+    }
+
+    .login-form {
+      margin-top: 2rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+      color: #333;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.75rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #0066cc;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0052a3;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .error {
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: #fee;
+      border: 1px solid #fcc;
+      border-radius: 4px;
+      color: #c33;
+      display: none;
+    }
+
+    .error.show {
+      display: block;
+    }
+
+    footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid #eee;
+      text-align: center;
+      color: #999;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Canvas MCP Server</h1>
+    <p>Connect your Canvas LMS to AI assistants via the Model Context Protocol</p>
+  </header>
+
+  <section>
+    <h2>Features</h2>
+    <ul>
+      <li>Direct integration with Claude Desktop and other MCP clients</li>
+      <li>Personal Access Token authentication (no admin access needed)</li>
+      <li>Access courses, assignments, and grades from your AI assistant</li>
+      <li>Works with any Canvas institution</li>
+    </ul>
+  </section>
+
+  <section class="login-form">
+    <h2>Get Started</h2>
+    <form id="loginForm">
+      <label for="canvasDomain">Canvas Domain</label>
+      <input
+        type="text"
+        id="canvasDomain"
+        name="canvasDomain"
+        placeholder="canvas.university.edu"
+        autocomplete="off"
+        required
+      />
+
+      <label for="accessToken" style="margin-top: 1rem;">Personal Access Token</label>
+      <input
+        type="password"
+        id="accessToken"
+        name="accessToken"
+        placeholder="Get this from Canvas → Settings → New Access Token"
+        autocomplete="off"
+        required
+      />
+
+      <button type="submit">Connect Canvas</button>
+      <div id="error" class="error"></div>
+    </form>
+
+    <details style="margin-top: 1.5rem;">
+      <summary style="cursor: pointer; color: #666;">How to get a Personal Access Token</summary>
+      <ol style="margin-top: 1rem; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
+        <li>Log in to your Canvas account</li>
+        <li>Go to Account → Settings</li>
+        <li>Scroll to "Approved Integrations"</li>
+        <li>Click "+ New Access Token"</li>
+        <li>Set Purpose: "MCP Server"</li>
+        <li>Set Expires: (optional, max 120 days)</li>
+        <li>Click "Generate Token"</li>
+        <li>Copy the token and paste it above</li>
+      </ol>
+    </details>
+  </section>
+
+  <footer>
+    <p>Canvas MCP Server &middot; <a href="https://modelcontextprotocol.io">MCP Documentation</a></p>
+  </footer>
+
+  <script type="module">
+    // Check if already logged in
+    fetch('/api/user/me', { credentials: 'include' })
+      .then(r => {
+        if (r.ok) {
+          window.location.href = '/dashboard';
+        }
+      })
+      .catch(() => {});
+
+    const form = document.getElementById('loginForm');
+    const errorDiv = document.getElementById('error');
+
+    function showError(message) {
+      errorDiv.textContent = message;
+      errorDiv.classList.add('show');
+    }
+
+    function hideError() {
+      errorDiv.classList.remove('show');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+
+      const domain = document.getElementById('canvasDomain').value.trim();
+      const token = document.getElementById('accessToken').value.trim();
+
+      if (!domain || !token) {
+        showError('Please fill in all fields');
+        return;
+      }
+
+      if (!domain.includes('.')) {
+        showError('Please enter a valid domain (e.g., canvas.university.edu)');
+        return;
+      }
+
+      const submitBtn = form.querySelector('button');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Connecting...';
+
+      try {
+        const response = await fetch('/api/auth/token-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            canvas_domain: domain,
+            access_token: token
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to connect');
+        }
+
+        window.location.href = '/dashboard';
+      } catch (error) {
+        showError(error.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Connect Canvas';
+      }
+    });
+  </script>
+</body>
+</html>
