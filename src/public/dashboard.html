@@ -10,17 +10,26 @@
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://canvas.dunkirk.sh/dashboard">
+  <meta property="og:url" content="https://canvas.dunkirk.sh/dashboard" id="og-url">
   <meta property="og:title" content="Dashboard - Canvas MCP">
   <meta property="og:description" content="Manage your Canvas MCP Server connection and API credentials. Connect your Canvas LMS to AI assistants.">
-  <meta property="og:image" content="https://canvas.dunkirk.sh/og.png">
+  <meta property="og:image" content="https://canvas.dunkirk.sh/og.png" id="og-image">
 
   <!-- Twitter -->
   <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="https://canvas.dunkirk.sh/dashboard">
+  <meta property="twitter:url" content="https://canvas.dunkirk.sh/dashboard" id="twitter-url">
   <meta property="twitter:title" content="Dashboard - Canvas MCP">
   <meta property="twitter:description" content="Manage your Canvas MCP Server connection and API credentials. Connect your Canvas LMS to AI assistants.">
-  <meta property="twitter:image" content="https://canvas.dunkirk.sh/og.png">
+  <meta property="twitter:image" content="https://canvas.dunkirk.sh/og.png" id="twitter-image">
+
+  <script>
+    // Set dynamic URLs based on current host
+    const baseUrl = window.location.origin;
+    document.getElementById('og-url').setAttribute('content', `${baseUrl}/dashboard`);
+    document.getElementById('og-image').setAttribute('content', `${baseUrl}/og.png`);
+    document.getElementById('twitter-url').setAttribute('content', `${baseUrl}/dashboard`);
+    document.getElementById('twitter-image').setAttribute('content', `${baseUrl}/og.png`);
+  </script>
   <style>
     * {
       margin: 0;
