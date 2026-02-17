@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { $ } from "bun";
 import DB from "./lib/db.js";
 import { CanvasClient } from "./lib/canvas.js";
 import {
@@ -10,6 +11,16 @@ import Mailer from "./lib/email.js";
 // Import HTML pages
 import indexPage from "./public/index.html";
 import dashboardPage from "./public/dashboard.html";
+
+// Get git commit hash
+let gitHash = "dev";
+let gitShortHash = "dev";
+try {
+	gitHash = (await $`git rev-parse HEAD`.text()).trim();
+	gitShortHash = (await $`git rev-parse --short HEAD`.text()).trim();
+} catch (e) {
+	console.warn("Could not get git hash:", e);
+}
 
 // Configuration
 const PORT = parseInt(process.env.PORT || "3000", 10);
@@ -876,6 +887,16 @@ const routes = {
 				success: true,
 				removed: results,
 				timestamp: new Date().toISOString(),
+			});
+		},
+	},
+
+	// Git version endpoint
+	"/api/version": {
+		GET() {
+			return Response.json({
+				hash: gitHash,
+				shortHash: gitShortHash,
 			});
 		},
 	},
