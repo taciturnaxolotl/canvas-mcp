@@ -815,6 +815,18 @@ const routes = {
       return Response.json({ api_key: newApiKey });
     },
   },
+
+  // Admin endpoint to manually trigger cleanup
+  "/api/admin/cleanup": {
+    POST(req: Request) {
+      const results = DB.runAllCleanups();
+      return Response.json({
+        success: true,
+        removed: results,
+        timestamp: new Date().toISOString(),
+      });
+    },
+  },
 };
 
 // Start server
@@ -832,3 +844,16 @@ const server = Bun.serve({
 console.log(`Canvas MCP Server running at ${BASE_URL}`);
 console.log(`Dashboard: ${BASE_URL}/dashboard`);
 console.log(`MCP Endpoint: ${BASE_URL}/mcp`);
+
+// Background cleanup job - runs every 5 minutes
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
+console.log(`[Cleanup] Starting background cleanup job (interval: ${CLEANUP_INTERVAL / 1000}s)`);
+
+// Run initial cleanup on startup
+DB.runAllCleanups();
+
+// Schedule periodic cleanup
+setInterval(() => {
+  DB.runAllCleanups();
+}, CLEANUP_INTERVAL);

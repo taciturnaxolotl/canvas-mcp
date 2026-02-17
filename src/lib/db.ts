@@ -387,9 +387,6 @@ export const DB = {
   },
 
   getSession(sessionId: string) {
-    // Clean up expired sessions
-    db.run("DELETE FROM sessions WHERE expires_at < ?", [Date.now()]);
-
     return db
       .query("SELECT * FROM sessions WHERE id = ? AND expires_at > ?")
       .get(sessionId, Date.now()) as any;
@@ -427,9 +424,6 @@ export const DB = {
 
   // Get session by API key (for MCP authentication)
   getSessionByToken(token: string) {
-    // Clean up expired sessions
-    db.run("DELETE FROM sessions WHERE expires_at < ?", [Date.now()]);
-
     return db
       .query("SELECT * FROM sessions WHERE api_key = ? AND expires_at > ?")
       .get(token, Date.now()) as any;
@@ -444,9 +438,6 @@ export const DB = {
   },
 
   getMagicLink(token: string) {
-    // Clean up expired magic links
-    db.run("DELETE FROM magic_links WHERE expires_at < ?", [Date.now()]);
-
     return db
       .query(
         "SELECT * FROM magic_links WHERE token = ? AND expires_at > ? AND used = 0"
@@ -510,9 +501,6 @@ export const DB = {
 
   // Rate limiting for magic links
   canSendMagicLink(email: string, cooldownMs: number = 60000): boolean {
-    // Clean up old magic links first
-    db.run("DELETE FROM magic_links WHERE expires_at < ?", [Date.now()]);
-
     // Check if a magic link was sent recently (within cooldown period)
     const recent = db
       .query(
@@ -547,9 +535,6 @@ export const DB = {
   },
 
   getUserByOAuthToken(token: string): User | null {
-    // Clean up expired tokens
-    db.run("DELETE FROM oauth_tokens WHERE expires_at < ?", [Date.now()]);
-
     const tokenData = db
       .query("SELECT * FROM oauth_tokens WHERE token = ? AND expires_at > ?")
       .get(token, Date.now()) as any;
@@ -579,6 +564,48 @@ export const DB = {
       size: apiKeyCache.size,
       ttl: CACHE_TTL,
     };
+  },
+
+  // Background cleanup operations (run these periodically, not on request path)
+  cleanupExpiredSessions(): number {
+    const result = db.run("DELETE FROM sessions WHERE expires_at < ?", [Date.now()]);
+    return result.changes;
+  },
+
+  cleanupExpiredMagicLinks(): number {
+    const result = db.run("DELETE FROM magic_links WHERE expires_at < ?", [Date.now()]);
+    return result.changes;
+  },
+
+  cleanupExpiredAuthCodes(): number {
+    const result = db.run("DELETE FROM auth_codes WHERE expires_at < ?", [Date.now()]);
+    return result.changes;
+  },
+
+  cleanupExpiredOAuthTokens(): number {
+    const result = db.run("DELETE FROM oauth_tokens WHERE expires_at < ?", [Date.now()]);
+    return result.changes;
+  },
+
+  // Clean up old usage logs (keep last 90 days)
+  cleanupOldUsageLogs(retentionDays: number = 90): number {
+    const cutoffTime = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+    const result = db.run("DELETE FROM usage_logs WHERE timestamp < ?", [cutoffTime]);
+    return result.changes;
+  },
+
+  // Run all cleanup operations
+  runAllCleanups(): { [key: string]: number } {
+    const results = {
+      sessions: this.cleanupExpiredSessions(),
+      magicLinks: this.cleanupExpiredMagicLinks(),
+      authCodes: this.cleanupExpiredAuthCodes(),
+      oauthTokens: this.cleanupExpiredOAuthTokens(),
+      usageLogs: this.cleanupOldUsageLogs(),
+    };
+
+    console.log('[Cleanup] Removed expired records:', results);
+    return results;
   },
 };
 
