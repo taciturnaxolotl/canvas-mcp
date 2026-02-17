@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 const db = new Database(process.env.DATABASE_PATH || "./canvas-mcp.db");
 
@@ -10,7 +10,7 @@ interface ApiKeyCacheEntry {
 }
 
 const apiKeyCache = new Map<string, ApiKeyCacheEntry>();
-const CACHE_TTL = parseInt(process.env.API_KEY_CACHE_TTL || "900000"); // 15 minutes default
+const CACHE_TTL = parseInt(process.env.API_KEY_CACHE_TTL || "900000", 10); // 15 minutes default
 
 // Cache cleanup interval (runs every 5 minutes)
 setInterval(
@@ -630,7 +630,6 @@ export const DB = {
 			usageLogs: this.cleanupOldUsageLogs(),
 		};
 
-		console.log("[Cleanup] Removed expired records:", results);
 		return results;
 	},
 };

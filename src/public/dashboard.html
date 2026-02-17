@@ -374,8 +374,10 @@
       .then(r => r.json())
       .then(data => {
         const link = document.getElementById('git-hash-link');
-        link.href = `https://tangled.org/dunkirk.sh/canvas-mcp/commit/${data.hash}`;
-        link.textContent = data.shortHash;
+        if (link) {
+          link.href = `https://tangled.org/dunkirk.sh/canvas-mcp/commit/${data.hash}`;
+          link.textContent = data.shortHash;
+        }
       })
       .catch(() => { });
 
@@ -408,12 +410,11 @@
           document.getElementById('connectCanvasSection').style.display = 'none';
           document.getElementById('accountSection').style.display = 'block';
           document.getElementById('mcpConnectionSection').style.display = 'block';
-          document.getElementById('quickSetupSection').style.display = 'block';
+          document.getElementById('quickSetupSection').style.display = lock';
           document.getElementById('usageStatsSection').style.display = 'block';
           renderAccountInfo();
           renderUsageStats();
           setupApiKeyDisplay();
-          updateMCPConfig();
         }
       } catch (error) {
         console.error('Failed to load dashboard:', error);
@@ -462,22 +463,6 @@
       `;
     }
 
-    function updateMCPConfig() {
-      const token = apiKeyVisible ? userData.api_key : "YOUR_MCP_TOKEN_HERE";
-      const config = {
-        mcpServers: {
-          canvas: {
-            url: `${window.location.origin}/mcp`,
-            headers: {
-              "Authorization": `Bearer ${token}`
-            }
-          }
-        }
-      };
-
-      document.getElementById('configBlock').textContent = JSON.stringify(config, null, 2);
-    }
-
     function showNotification(message) {
       const notification = document.getElementById('notification');
       notification.textContent = message;
@@ -497,7 +482,6 @@
         document.getElementById('apiKeyDisplay').style.display = 'block';
         document.getElementById('apiKeyValue').textContent = userData.api_key;
         apiKeyVisible = true;
-        updateMCPConfig();
       } else {
         // Hide the key
         document.getElementById('apiKeyHidden').style.display = 'block';
@@ -555,7 +539,6 @@
           document.getElementById('apiKeyDisplay').style.display = 'block';
           document.getElementById('apiKeyValue').textContent = userData.api_key;
           apiKeyVisible = true;
-          updateMCPConfig();
 
           regenerateState = 'show-token';
           btn.disabled = false;
