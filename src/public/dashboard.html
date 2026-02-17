@@ -1,9 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard - Canvas MCP</title>
+  <link rel="icon" type="image/x-icon" href="./favicon.ico">
   <style>
     * {
       margin: 0;
@@ -199,6 +201,7 @@
     }
   </style>
 </head>
+
 <body>
   <header>
     <h1>Dashboard</h1>
@@ -213,26 +216,20 @@
     <form id="connectCanvasForm">
       <div style="margin-bottom: 1rem;">
         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Canvas Domain</label>
-        <input
-          type="text"
-          id="canvasDomain"
-          placeholder="canvas.university.edu"
+        <input type="text" id="canvasDomain" placeholder="canvas.university.edu"
           style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;"
-          required
-        />
+          required />
       </div>
       <div style="margin-bottom: 1rem;">
         <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Personal Access Token</label>
-        <input
-          type="password"
-          id="accessToken"
-          placeholder="Get this from Canvas → Settings → New Access Token"
+        <input type="password" id="accessToken" placeholder="Get this from Canvas → Settings → New Access Token"
           style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem;"
-          required
-        />
+          required />
       </div>
       <button type="submit" style="width: 100%; padding: 0.75rem;">Connect Canvas</button>
-      <div id="connectError" style="display: none; margin-top: 1rem; padding: 0.75rem; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c33;"></div>
+      <div id="connectError"
+        style="display: none; margin-top: 1rem; padding: 0.75rem; background: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c33;">
+      </div>
     </form>
     <details style="margin-top: 1.5rem;">
       <summary style="cursor: pointer; color: #666;">How to get a Personal Access Token</summary>
@@ -285,7 +282,8 @@
       </div>
 
       <div id="apiKeyDisplay" style="display: none;">
-        <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+        <div
+          style="background: #fff3cd; border: 1px solid #ffc107; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
           <strong>⚠️ Save this token now!</strong> You won't be able to see it again after leaving this page.
         </div>
         <div class="api-key-display">
@@ -567,7 +565,7 @@
       try {
         const response = await fetch('/api/auth/token-login', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {'Content-Type': 'application/json'},
           credentials: 'include',
           body: JSON.stringify({
             canvas_domain: domain,
@@ -594,4 +592,5 @@
     loadDashboard();
   </script>
 </body>
+
 </html>

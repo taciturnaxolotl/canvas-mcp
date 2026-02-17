@@ -10,10 +10,22 @@ import DB from "./db.js";
 
 // Create MCP Server instance with user context
 export function createMcpServer(userId: number): Server {
+  const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
+
   const server = new Server(
     {
       name: "canvas-mcp",
       version: "1.0.0",
+      title: "Canvas LMS",
+      description: "Access your Canvas courses, assignments, grades, and announcements",
+      websiteUrl: BASE_URL,
+      icons: [
+        {
+          src: `${BASE_URL}/favicon.ico`,
+          mimeType: "image/x-icon",
+          sizes: ["32x32"],
+        },
+      ],
     },
     {
       capabilities: {
