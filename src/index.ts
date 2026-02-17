@@ -1,16 +1,16 @@
-import { randomBytes } from "crypto";
+import { randomBytes } from "node:crypto";
 import { $ } from "bun";
-import DB from "./lib/db.js";
 import { CanvasClient } from "./lib/canvas.js";
-import {
-	handleMcpRequest,
-	getProtectedResourceMetadata,
-} from "./lib/mcp-transport.js";
+import DB from "./lib/db.js";
 import Mailer from "./lib/email.js";
+import {
+	getProtectedResourceMetadata,
+	handleMcpRequest,
+} from "./lib/mcp-transport.js";
 
-// Import HTML pages
-import indexPage from "./public/index.html";
+// import HTML pages
 import dashboardPage from "./public/dashboard.html";
+import indexPage from "./public/index.html";
 
 // Get git commit hash
 let gitHash = "dev";
@@ -879,18 +879,6 @@ const routes = {
 		},
 	},
 
-	// Admin endpoint to manually trigger cleanup
-	"/api/admin/cleanup": {
-		POST(req: Request) {
-			const results = DB.runAllCleanups();
-			return Response.json({
-				success: true,
-				removed: results,
-				timestamp: new Date().toISOString(),
-			});
-		},
-	},
-
 	// Git version endpoint
 	"/api/version": {
 		GET() {
@@ -920,10 +908,6 @@ console.log(`MCP Endpoint: ${BASE_URL}/mcp`);
 
 // Background cleanup job - runs every 5 minutes
 const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
-
-console.log(
-	`[Cleanup] Starting background cleanup job (interval: ${CLEANUP_INTERVAL / 1000}s)`,
-);
 
 // Run initial cleanup on startup
 DB.runAllCleanups();
